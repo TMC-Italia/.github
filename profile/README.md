@@ -7,5 +7,5 @@ An international high-tech consultancy company with a team of entrepreneurial en
 [About Us](https://www.themembercompany.com/it/su-di-noi)
 
 ## Contacts
-- [LinkedIn](https://www.linkedin.com/company/tmc-italia/mycompany/)
+- [LinkedIn](https://www.linkedin.com/company/tmc-italia/)
 - [Instagram](https://www.instagram.com/tmc_group/)
