@@ -1,8 +1,22 @@
 # TMC Hackathon Plan
 
-**Duration**: 4 Hours  
-**Participants**: 7-8 People  
-**Goal**: Ship one working feature per project
+**Duration**: 4 Hours (3.5h coding + 0.5h demos)
+**Participants**: 7 People  
+**Goal**: One shippable feature per project
+
+**Reality Check**:
+
+- Actual coding time: ~3.5 hours
+- Time lost to: setup issues, debugging, integration
+- Keep scope minimal, cut ruthlessly
+
+## What NOT to Do
+
+- ❌ Don't aim for 80% test coverage (aim for 5 key tests)
+- ❌ Don't try to implement all features (pick ONE working demo)
+- ❌ Don't spend >30min on any single bug (timebox and move on)
+- ❌ Don't write comprehensive docs (README basics only)
+- ❌ Don't perfect the code (working > perfect)
 
 ## Pre-Event Checklist
 
@@ -22,103 +36,126 @@
 ### 🧠 AI
 
 - [ ] 5-10 dummy CVs created in `research/test_data/` (no real data!)
-- [ ] Dependencies added to pyproject.toml: `chromadb`, `sentence-transformers`, `pypdf`, `python-multipart`
-- [ ] Sentence-transformers model pre-downloaded
-- [ ] Competence list defined in JSON
 
 ### 📍 Places
 
-- [ ] mock_data.json created for Graph API testing
 
+## Team Assignments (11 people)
 
-## Team Assignments
+### 🧠 AI (3 people - Reviewer: Alessandro)
 
-### ☁️ Cloud (Reviewer: Silvio)
+- Matilde
+- Francesco
+- Beatrice
+- Walter
+- Thomas
+- Roberto
+- Mattia
 
-- Marco - Hardware/OS setup
-- Flavio - Network/Storage
+### ☁️ Cloud (2 people - Reviewer: Flavio)
 
-### 🧠 AI (Reviewer: Alessandro)
+- Marco - Bootstrap script + Security hardening
+- Flavio - Network + Storage + Validation
+- Zaccaria - Docker + Portainer + Monitoring
+- Mattia -
 
-- Matilde - Data/Competence definitions
-- Francesco - PDF parsing & embeddings
-- Beatrice - API endpoints
-- Walter - Testing & integration
+### 📍 Places (2 people - Reviewer: Alberto)
 
-### 📍 Places (Reviewer: Marco)
-
-- Alberto - Backend testing & quality
-- Zaccaria - Frontend testing & UI/UX
+- Alberto - Backend tests + Code quality + CI/CD
+- XXX - Frontend + UX improvements
 
 ---
 
 ## Project Goals & Tasks
 
-### ☁️ Cloud: "PC Online and Ready"
+### ☁️ Cloud: "Automated Node Setup"
 
-**Goal**: One script transforms fresh Ubuntu PC → production-ready node
+**Goal**: Single script to bootstrap Ubuntu → production node
 
-**Tasks**:
+**Tasks** (3.5h total):
 
-1. Create `scripts/bootstrap-node.sh` - idempotent setup script (Docker, essentials, system config)
-2. Configure security: UFW rules, fail2ban, SSH hardening
-3. Automate network: static IPs, DNS, hostname
-4. Setup storage: NFS mounts with proper permissions
-5. Deploy Portainer: accessible at `http://<node-ip>:9000`
-6. Integrate Tailscale: auto-connect with pre-auth keys
+1. **Bootstrap Script** (90min)
+   - Create `scripts/bootstrap-node.sh` with role selection
+   - Call existing scripts in sequence
+   - Add basic error handling
 
-**Success Criteria**:
+2. **Security Hardening** (60min)
+   - UFW firewall with role-based rules
+   - SSH key-only auth (no passwords)
+   - Basic fail2ban setup
 
-- `./scripts/bootstrap-node.sh` completes without errors
-- PC reachable via ping and SSH
-- `docker ps` shows healthy containers
-- Portainer UI accessible in browser
-- `tailscale status` shows connected
-- Storage mounted and writable
+3. **Network + Storage** (60min)
+   - Static IP configuration
+   - NFS server on storage node
+   - NFS client mounts on others
 
-### 🧠 AI: "Working RAG Pipeline"
-
-**Goal**: Upload CV PDF → get competence matches with scores
-
-**Tasks**:
-
-1. Create `src/app/services/pdf_parser.py` - extract text from PDFs (PyMuPDF/pypdf)
-2. Add ChromaDB to docker-compose + `src/app/services/vector_store.py` wrapper
-3. Create `src/app/services/embeddings.py` - Italian sentence-transformers model
-4. Build API endpoints: `/api/cv/upload`, `/api/cv/search`, `/api/competences/match`
-5. Prepare 5-10 dummy CVs in `research/test_data/`
-6. Add basic HTML form at `/` for CV upload
+4. **Validation** (30min)
+   - Create `validate-node.sh` script
+   - Check: Docker, network, SSH, storage
 
 **Success Criteria**:
 
-- `POST /api/cv/upload` accepts PDF and returns extracted text
-- ChromaDB stores embeddings (verify with query)
-- `POST /api/cv/search` with "Python developer" returns relevant results
-- Competence matching returns top 3 matches with scores
-- `docker compose up` starts both services
-- UI at `http://localhost:8000` allows CV upload
+- Bootstrap script runs without manual intervention
+- PC accessible via SSH with keys
+- Docker installed and running
+- Static IP configured
+- Storage mounted (if worker/master)
+- Validation script passes all checks
 
-### 📍 Places: "Production-Ready Quality"
+### 🧠 AI: "CV Upload → Competence Matching"
 
-**Goal**: Add testing, improve code quality, enhance UI/UX
+**Goal**: Upload PDF → extract text → show similar competences
 
-**Tasks**:
+**Tasks** (3.5h total):
 
-1. Backend tests: pytest with fixtures for Graph API mocking
-2. Frontend tests: Vitest + React Testing Library for key components
-3. Code quality: add ruff/black/mypy, improve type hints and error handling
-4. UI/UX: loading states, error boundaries, accessibility, toast notifications
-5. CI/CD: pipeline for tests, linting, type checking on PRs
-6. E2E tests: Playwright for critical user flows
-7. Documentation: testing guide and deployment checklist
+1. **Core Services** (120min)
+   - PDF parser (`pdf_parser.py`)
+   - ChromaDB in docker-compose
+   - Vector store wrapper (`vector_store.py`)
+
+2. **API Layer** (90min)
+   - Embedding service with sentence-transformers
+   - `/api/cv/upload` endpoint
+   - `/api/cv/search` endpoint
+
+3. **UI + Testing** (60min)
+   - Create 5 dummy CVs (no real data)
+   - Simple HTML upload form
+   - Test all endpoints manually
 
 **Success Criteria**:
 
-- Backend tests pass with >80% coverage (`pytest`)
-- Frontend tests pass (`npm test`)
-- CI pipeline passes on test PR
-- UI shows loading states and error handling
-- E2E test completes: map loads → date selected → rooms show status
-- Code quality tools configured (ruff, black, mypy, eslint)
+- Upload PDF → returns extracted text + word count
+- Search "Python" → returns relevant CVs
+- `docker compose up` works
+- UI form uploads and shows results
+- At least 3 test CVs processed successfully
 
+### 📍 Places: "Testing + Polish"
 
+**Goal**: Add tests, linting, better UX
+
+**Tasks** (3.5h total):
+
+1. **Backend Quality** (120min)
+   - Setup pytest with fixtures
+   - Write tests for main API endpoints
+   - Add ruff + mypy to pyproject.toml
+   - Create basic CI workflow
+
+2. **Frontend Polish** (120min)
+   - Setup Vitest + React Testing Library
+   - Test 2-3 key components
+   - Add loading spinners
+   - Error boundaries
+   - Toast notifications
+
+**Success Criteria**:
+
+- Backend: 5+ tests passing
+- Frontend: 3+ component tests passing
+- Linting configured (ruff, eslint)
+- UI shows loading states
+- UI handles errors gracefully
+- CI workflow file exists (doesn't need to run)
+## 
