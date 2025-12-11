@@ -39,7 +39,6 @@
 
 ### 📍 Places
 
-
 ## Team Assignments (11 people)
 
 ### 🧠 AI (Reviewer: Alessandro)
@@ -159,4 +158,3 @@
 - UI shows loading states
 - UI handles errors gracefully
 - CI workflow file exists (doesn't need to run)
-## 
