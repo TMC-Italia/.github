@@ -1,7 +1,7 @@
 # Places Project - Hackathon Tasks
 
 **Duration**: 4 Hours  
-**Goal**: Add testing, improve code quality, enhance UI/UX
+**Goal**: Add testing backend, improve code quality, CI/CD improvements.
 
 ## Pre-Event Checklist
 

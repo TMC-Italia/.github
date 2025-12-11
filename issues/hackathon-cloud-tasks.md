@@ -1,7 +1,7 @@
 # Cloud Project - Hackathon Tasks
 
 **Duration**: 4 Hours  
-**Goal**: One script transforms fresh Ubuntu PC → production-ready node
+**Goal**: One script transforms fresh Ubuntu PC → storage and visible output
 
 ## Pre-Event Checklist
 

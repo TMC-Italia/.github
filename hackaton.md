@@ -42,7 +42,7 @@
 
 ## Team Assignments (11 people)
 
-### 🧠 AI (3 people - Reviewer: Alessandro)
+### 🧠 AI (Reviewer: Alessandro)
 
 - Matilde
 - Francesco
@@ -52,17 +52,16 @@
 - Roberto
 - Mattia
 
-### ☁️ Cloud (2 people - Reviewer: Flavio)
+### ☁️ Cloud (Reviewer: Flavio)
 
-- Marco - Bootstrap script + Security hardening
-- Flavio - Network + Storage + Validation
-- Zaccaria - Docker + Portainer + Monitoring
-- Mattia -
+- Marco
+- Flavio
+- Zaccaria
+- Mattia
 
-### 📍 Places (2 people - Reviewer: Alberto)
+### 📍 Places (Reviewer: Alberto)
 
-- Alberto - Backend tests + Code quality + CI/CD
-- XXX - Frontend + UX improvements
+- Alberto
 
 ---
 
