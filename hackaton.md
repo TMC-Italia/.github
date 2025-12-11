@@ -102,34 +102,36 @@
 - Storage mounted (if worker/master)
 - Validation script passes all checks
 
-### 🧠 AI: "CV Upload → Competence Matching"
+### 🧠 AI: "RAG-based CV Competence Matching"
 
-**Goal**: Upload PDF → extract text → show similar competences
+**Goal**: Upload PDF → chunk with metadata → semantic search → LLM matching
 
 **Tasks** (3.5h total):
 
-1. **Core Services** (120min)
-   - PDF parser (`pdf_parser.py`)
-   - ChromaDB in docker-compose
-   - Vector store wrapper (`vector_store.py`)
+1. **Core Services** (135min)
+   - PDF parser with LangChain chunking (`pdf_parser.py`)
+   - ChromaDB + Ollama in docker-compose
+   - Vector store with chunk metadata (`vector_store.py`)
+   - BAAI/bge-m3 embedding service
 
-2. **API Layer** (90min)
-   - Embedding service with sentence-transformers
-   - `/api/cv/upload` endpoint
-   - `/api/cv/search` endpoint
+2. **RAG API Layer** (90min)
+   - `/api/cv/upload` endpoint (chunks + embeddings)
+   - `/api/cv/search` semantic search endpoint
+   - `/api/cv/competences/match` RAG with Llama 3.1
 
-3. **UI + Testing** (60min)
+3. **UI + Testing** (45min)
    - Create 5 dummy CVs (no real data)
-   - Simple HTML upload form
-   - Test all endpoints manually
+   - HTML form with upload + competence matching
+   - Test RAG workflow end-to-end
 
 **Success Criteria**:
 
-- Upload PDF → returns extracted text + word count
-- Search "Python" → returns relevant CVs
-- `docker compose up` works
-- UI form uploads and shows results
-- At least 3 test CVs processed successfully
+- Upload PDF → chunks stored with candidate metadata
+- Search "Python" → returns relevant chunks with CV names
+- Competence matching uses Llama 3.1 for intelligent scoring
+- `docker compose up` starts ChromaDB + Ollama + App
+- UI shows RAG results with LLM responses
+- Zero data leakage (all local processing)
 
 ### 📍 Places: "Testing + Polish"
 
