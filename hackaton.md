@@ -1,170 +1,124 @@
-Pre-Hackathon Tech Checklist (PM & Owners)
+# TMC Hackathon Plan
 
-To be completed 24 hours BEFORE the event.
+**Duration**: 4 Hours  
+**Participants**: 7-8 People  
+**Goal**: Ship one working feature per project
 
-General
+## Pre-Event Checklist
 
-[ ] Pizza/Snacks ordered? (Crucial for 4-hour intensity).
+### General
 
-[ ] WiFi access confirmed for all personal laptops.
+- [ ] Pizza/snacks ordered
+- [ ] WiFi access for all laptops
+- [ ] GitHub access to TMC-Italia org confirmed
 
-[ ] All participants have GitHub access to TMC-Italia org.
+### ☁️ Cloud
 
-☁️ Cloud Project Prep
+- [ ] Fresh Ubuntu 22.04 LTS installed on test PC (with VM snapshot)
+- [ ] Tailscale pre-auth keys generated
+- [ ] Static IPs documented (Master: 192.168.1.100, Worker: 192.168.1.101, etc.)
+- [ ] tmc-cloud repo cloned with executable scripts
 
-[ ] Hardware: Are the legacy PCs plugged in and on the network?
-[ ] OS: Is there at least one machine with a fresh Ubuntu Server install ready to be the "test subject"?
-[ ] Secrets: Are the Tailscale Auth Keys generated and saved in a .env file or password manager?
+### 🧠 AI
 
-🧠 AI Project Prep
+- [ ] 5-10 dummy CVs created in `research/test_data/` (no real data!)
+- [ ] Dependencies added to pyproject.toml: `chromadb`, `sentence-transformers`, `pypdf`, `python-multipart`
+- [ ] Sentence-transformers model pre-downloaded
+- [ ] Competence list defined in JSON
 
-[ ] Data: Do we have a folder with 10-20 anonymized dummy CVs? (Do NOT use real sensitive data for the hackathon to avoid GDPR headaches during dev).
-[ ] Models: Has someone pre-downloaded the sentence-transformers model weights? (Downloading 2GB+ during the hackathon kills WiFi).
-[ ] Docker: Does the docker-compose.yml for ChromaDB/Ollama work on Alessandro's machine?
+### 📍 Places
 
-📍 TMC Places Prep
+- [ ] mock_data.json created for Graph API testing
 
-[ ] Keys: Create a mock_data.json file so devs don't need real Microsoft Graph API tokens to start working.
-[ ] Design: Do we have the SVG or image file of the office floorplan? (Devs cannot draw the map during the 4 hours).
 
+## Team Assignments
 
-4-Hour Hackathon Execution Plan: TMC Innovation Projects
+### ☁️ Cloud (Reviewer: Silvio)
 
-1. Logistics & Setup
+- Marco - Hardware/OS setup
+- Flavio - Network/Storage
 
-Duration: 4 Hours
+### 🧠 AI (Reviewer: Alessandro)
 
-Participants: 7-8 People
+- Matilde - Data/Competence definitions
+- Francesco - PDF parsing & embeddings
+- Beatrice - API endpoints
+- Walter - Testing & integration
 
-Goal: Ship one "Vertical Slice" or "Core Component" per project. No "In Progress" code at the end—everything must run or demo.
+### 📍 Places (Reviewer: Marco)
 
-2. Team Structure & Roles (Total: 8 Pax)
+- Alberto - Backend testing & quality
+- Zaccaria - Frontend testing & UI/UX
 
-To manage PRs efficiently, we will split into two "Review Squads." The PR Reviewers/Owners are responsible for unblocking devs and merging code immediately.
+---
 
-Squad A: Infrastructure & Cloud (3 People)
+## Project Goals & Tasks
 
-Owner/Reviewer: Silvio (Group Leader/PM)
+### ☁️ Cloud: "PC Online and Ready"
 
-Developers:
+**Goal**: One script transforms fresh Ubuntu PC → production-ready node
 
-Marco (Hardware/OS focus)
+**Tasks**:
 
-Flavio (Network/Storage focus)
+1. Create `scripts/bootstrap-node.sh` - idempotent setup script (Docker, essentials, system config)
+2. Configure security: UFW rules, fail2ban, SSH hardening
+3. Automate network: static IPs, DNS, hostname
+4. Setup storage: NFS mounts with proper permissions
+5. Deploy Portainer: accessible at `http://<node-ip>:9000`
+6. Integrate Tailscale: auto-connect with pre-auth keys
 
-Project: Hosting and Cloud
+**Success Criteria**:
 
-Squad B: Software & AI (5 People)
+- `./scripts/bootstrap-node.sh` completes without errors
+- PC reachable via ping and SSH
+- `docker ps` shows healthy containers
+- Portainer UI accessible in browser
+- `tailscale status` shows connected
+- Storage mounted and writable
 
-Owner/Reviewer: Alessandro (Tech Lead/Architect)
+### 🧠 AI: "Working RAG Pipeline"
 
-Developers (AI Team):
+**Goal**: Upload CV PDF → get competence matches with scores
 
-Matilde (Data/Curricular focus)
+**Tasks**:
 
-Dev 1 (TBD)
+1. Create `src/app/services/pdf_parser.py` - extract text from PDFs (PyMuPDF/pypdf)
+2. Add ChromaDB to docker-compose + `src/app/services/vector_store.py` wrapper
+3. Create `src/app/services/embeddings.py` - Italian sentence-transformers model
+4. Build API endpoints: `/api/cv/upload`, `/api/cv/search`, `/api/competences/match`
+5. Prepare 5-10 dummy CVs in `research/test_data/`
+6. Add basic HTML form at `/` for CV upload
 
-Developers (Places Team):
+**Success Criteria**:
 
-Dev 2 (Frontend focus)
+- `POST /api/cv/upload` accepts PDF and returns extracted text
+- ChromaDB stores embeddings (verify with query)
+- `POST /api/cv/search` with "Python developer" returns relevant results
+- Competence matching returns top 3 matches with scores
+- `docker compose up` starts both services
+- UI at `http://localhost:8000` allows CV upload
 
-Dev 3 (Backend focus)
+### 📍 Places: "Production-Ready Quality"
 
-3. The 4-Hour Schedule (The "Sprint")
+**Goal**: Add testing, improve code quality, enhance UI/UX
 
-Time
+**Tasks**:
 
-Phase
+1. Backend tests: pytest with fixtures for Graph API mocking
+2. Frontend tests: Vitest + React Testing Library for key components
+3. Code quality: add ruff/black/mypy, improve type hints and error handling
+4. UI/UX: loading states, error boundaries, accessibility, toast notifications
+5. CI/CD: pipeline for tests, linting, type checking on PRs
+6. E2E tests: Playwright for critical user flows
+7. Documentation: testing guide and deployment checklist
 
-Activity
+**Success Criteria**:
 
-0:00 - 0:15
+- Backend tests pass with >80% coverage (`pytest`)
+- Frontend tests pass (`npm test`)
+- CI pipeline passes on test PR
+- UI shows loading states and error handling
+- E2E test completes: map loads → date selected → rooms show status
+- Code quality tools configured (ruff, black, mypy, eslint)
 
-Kick-off
 
-PM (Silvio) sets the goal. Everyone clones latest repos. Environment check (Do npm install / pip install work?).
-
-0:15 - 1:45
-
-Sprint Block 1
-
-"The Ugly Implementation". Code the logic. Don't worry about perfect clean code yet. Get the feature working locally.
-
-1:45 - 2:00
-
-Sync & Coffee
-
-Stand-up. Blockers raised. If a feature isn't 50% done, cut the scope now.
-
-2:00 - 3:15
-
-Sprint Block 2
-
-"Integration & Refinement". Connect Frontend to Backend, or Script to Server. Prepare the PR.
-
-3:15 - 3:45
-
-The Merge
-
-Code Freeze. Reviewers (Silvio/Alessandro) review PRs. CI/CD checks. Merge to dev/main.
-
-3:45 - 4:00
-
-Demo
-
-5 mins per team. Show it running. No slides, only live code.
-
-4. Tactical Objectives (The "Must-Dos")
-
-☁️ Project 1: Cloud / On-Prem Infra
-
-Context: Repurposing legacy PCs.
-Hackathon Goal: "One-Click Node Setup"
-
-Why: Installing OS and config manually takes too long. We need automation.
-
-Tasks:
-
-Marco: Finalize the tailscale and Network Config script. Ensure the node joins the mesh automatically upon run.
-
-Flavio: Write the Master Setup Script (Bash/Ansible) that calls Docker installation, Portainer agent, and Storage mount.
-
-Silvio (Reviewer): Test the script on a fresh node/VM to verify it works "headless."
-
-🧠 Project 2: AI (HR CV Screening)
-
-Context: Local RAG, GDPR compliant, no internet API.
-Hackathon Goal: "The Ingestion Pipeline"
-
-Why: We can't do RAG without clean data. The parsing is the bottleneck.
-
-Tasks:
-
-Matilde: Build the PDF Cleaner. Script using PyMuPDF or unstructured to strip headers/footers/images and output clean JSON/Text.
-
-Dev 1: Build the Embedding Generator. Take Matilde's text, run sentence-transformers (Italian model), and insert vectors into ChromaDB (running in Docker).
-
-Alessandro (Reviewer): Ensure the docker-compose for the Vector DB is stable and Python environments match.
-
-📍 Project 3: TMC Places
-
-Context: Booking visualization, Graph API.
-Hackathon Goal: "The Map Connection"
-
-Why: We have a backend and frontend, but do they talk?
-
-Tasks:
-
-Dev 2 (Frontend): Create the Office Map Component (SVG/Canvas). Hardcode the rooms, but make them change color based on a prop (status='occupied').
-
-Dev 3 (Backend): Create a Mock Endpoint in FastAPI that mimics the Microsoft Graph response (so we don't spend 4 hours debugging OAuth). Serve a JSON of room statuses.
-
-Integration: Fetch the Mock JSON in Frontend to update the Map colors.
-
-5. Definition of Done (DoD)
-
-Cloud: A script exists. When run on a fresh Ubuntu Server, it installs Docker, connects Tailscale, and reports "Ready."
-
-AI: A Python script exists. You point it at a folder of 5 PDFs, and it results in a populated Vector Database (verified by a simple query print).
-
-Places: You can load localhost:3000, see a map of the office, and the rooms are colored red/green based on data coming from localhost:8000.
