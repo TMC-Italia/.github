@@ -22,9 +22,9 @@
 
 ### General
 
-- [ ] Pizza/snacks ordered
+- [x] Pizza/snacks ordered
 - [ ] WiFi access for all laptops
-- [ ] GitHub access to TMC-Italia org confirmed
+- [x] GitHub access to TMC-Italia org confirmed
 
 ### ☁️ Cloud
 
