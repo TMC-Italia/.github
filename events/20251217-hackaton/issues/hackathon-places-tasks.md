@@ -5,8 +5,8 @@
 
 ## Pre-Event Checklist
 
-- [ ] Development environment running (`cd tmc-places/backend && uv sync`)
-- [ ] Verify project structure
+- [x] Development environment running (`cd tmc-places/backend && uv sync`)
+- [x] Verify project structure
 
 ---
 
@@ -264,7 +264,6 @@ spec:
 
 **Stretch Goals** (if time permits):
 - [ ] Actually deploy to tmc-cloud cluster
-- [ ] Add frontend linting (ESLint)
 - [ ] Coverage report >60%
 
 ---
@@ -275,6 +274,7 @@ spec:
 # Setup
 cd tmc-places/backend
 uv sync
+cp .env.example .env 
 
 # Testing
 make test                    # Run all tests
