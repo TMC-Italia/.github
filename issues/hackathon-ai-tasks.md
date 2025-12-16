@@ -1,91 +1,47 @@
-# AI Project - Hackathon Tasks
+# Competence Mapping AI - Hackathon Tasks
 
 **Duration**: 4 Hours  
-**Goal**: Upload CV PDF → get competence matches with scores
+**Goal**: RAG-based CV competence matching system with zero data leakage (fully local)
+
+## Architecture Overview
+
+**Services (Docker Compose)**:
+1. **Frontend Service** - Simple UI (React/shadcn OR plain HTML/JS if time-limited)
+2. **Backend API** (`fastapi_backend`) - FastAPI orchestrator with RAG logic
+3. **LLM Runtime** (`ollama`) - Llama 3.1 8B model server (port 11434)
+4. **Vector Database** (`chromadb`) - Persistent vector store for CV embeddings
+5. **Docker Volumes** - Persist `ollama_models`, `chroma_data`, and `/curricula` mapping
+
+**Data Flow**: PDF Upload → Text Extraction → Chunking → Embedding → ChromaDB Storage → Query → RAG Retrieval → LLM Analysis → Results
+
+---
 
 ## Pre-Event Checklist
 
-- [ ] 5-10 dummy CVs in PDF format in `research/test_data/`
-- [ ] Dependencies added: `chromadb`, `langchain`, `langchain-community`, `pymupdf`, `python-multipart`, `ollama`
-- [ ] Ollama installed locally with Llama 3.1 8B model pulled (`ollama pull llama3.1:8b`)
-- [ ] BAAI/bge-m3 embedding model pre-downloaded via HuggingFace
-- [ ] Competence list JSON created
+- [ ] Ollama installed with Llama 3.1 8B (`ollama pull llama3.1:8b`)
+- [ ] 5-10 dummy CV PDFs in `research/test_data/`
+- [ ] Dependencies: `chromadb`, `pymupdf`, `python-multipart`, `ollama`, `sentence-transformers`
+- [ ] Docker & Docker Compose installed
 
 ---
 
-## Task 1: PDF Parser Service with Chunking (45 min)
+## Task 1: Docker Compose Services Setup (30 min)
 
-**Goal**: Extract text from CV PDFs and split into chunks with metadata.
-
-**Why**: Semi-structured CVs require chunking to find specific skills. Metadata ensures we don't lose candidate identity.
+**Goal**: Configure all services with proper networking and persistence.
 
 **Implementation**:
 
-Create `src/app/services/pdf_parser.py`:
-
-```python
-import fitz  # PyMuPDF
-from typing import Dict, List
-from langchain.text_splitter import RecursiveCharacterTextSplitter
-
-class PDFParser:
-    def __init__(self):
-        self.text_splitter = RecursiveCharacterTextSplitter(
-            chunk_size=1000,
-            chunk_overlap=200,
-            length_function=len,
-        )
-    
-    def extract_text(self, pdf_path: str) -> Dict[str, any]:
-        doc = fitz.open(pdf_path)
-        full_text = ""
-        
-        for page in doc:
-            full_text += page.get_text()
-        
-        doc.close()
-        
-        # Basic cleaning
-        full_text = full_text.strip()
-        full_text = " ".join(full_text.split())
-        
-        # Split into chunks
-        chunks = self.text_splitter.split_text(full_text)
-        
-        return {
-            "raw_text": full_text,
-            "chunks": chunks,
-            "page_count": len(doc),
-            "word_count": len(full_text.split()),
-            "chunk_count": len(chunks)
-        }
-```
-
-**Acceptance Criteria**:
-
-- [ ] `pdf_parser.py` exists in `src/app/services/`
-- [ ] Uses PyMuPDF (fitz) for extraction
-- [ ] Implements LangChain text splitter (1000 chars, 200 overlap)
-- [ ] Returns chunks with metadata
-- [ ] Handles multi-page PDFs
-- [ ] Basic error handling for corrupted PDFs
-
----
-
-## Task 2: Vector Database Setup with Metadata (45 min)
-
-**Goal**: Add ChromaDB to docker-compose with chunk-level metadata storage.
-
-**Why**: Need vector storage for semantic search. Metadata prevents losing candidate identity.
-
-**Implementation**:
-
-Add to `docker-compose.yml`:
+Create/update `docker-compose.yml`:
 
 ```yaml
 services:
-  app:
-    # existing config...
+  # Backend API Service
+  fastapi_backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
     depends_on:
       - chromadb
       - ollama
@@ -93,7 +49,10 @@ services:
       - CHROMA_HOST=chromadb
       - CHROMA_PORT=8000
       - OLLAMA_HOST=http://ollama:11434
+    volumes:
+      - ./research/test_data:/app/curricula:ro  # Map CV folder
 
+  # ChromaDB Vector Store
   chromadb:
     image: chromadb/chroma:latest
     ports:
@@ -102,49 +61,118 @@ services:
       - chroma_data:/chroma/chroma
     environment:
       - IS_PERSISTENT=TRUE
+      - ANONYMIZED_TELEMETRY=FALSE
 
+  # Ollama LLM Runtime
   ollama:
     image: ollama/ollama:latest
     ports:
       - "11434:11434"
     volumes:
       - ollama_models:/root/.ollama
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu]
+    # Uncomment for GPU support
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: all
+    #           capabilities: [gpu]
 
 volumes:
-  chroma_data:
-  ollama_models:
+  chroma_data:      # Persistent vector embeddings
+  ollama_models:    # Persistent LLM models
 ```
 
-Create `src/app/services/vector_store.py`:
+**Acceptance Criteria**:
+
+- [ ] All 3 services defined in docker-compose.yml
+- [ ] Persistent volumes for ChromaDB and Ollama
+- [ ] `/curricula` volume mounted for CV access
+- [ ] Environment variables configured
+- [ ] Services start with `docker compose up -d`
+- [ ] Health check: Ollama at `localhost:11434`, ChromaDB at `localhost:8001`
+
+---
+
+## Task 2: PDF Processing & Embedding Pipeline (45 min)
+
+**Goal**: Extract text from PDFs, chunk, and generate embeddings using local models.
+
+**Why**: Need to convert CVs into searchable vectors. Using `sentence-transformers` integrated in backend.
+
+**Implementation**:
+
+Create `src/app/services/ingestion.py`:
 
 ```python
-import chromadb
+import fitz  # PyMuPDF
+from sentence_transformers import SentenceTransformer
 from typing import List, Dict
+import chromadb
 
-class VectorStore:
-    def __init__(self):
-        self.client = chromadb.HttpClient(host="chromadb", port=8000)
-        self.collection = self.client.get_or_create_collection(
-            name="cv_chunks",
+class IngestionService:
+    def __init__(self, chroma_host="chromadb", chroma_port=8000):
+        # Initialize embedding model (runs in fastapi_backend container)
+        self.embedder = SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2')
+        
+        # Connect to ChromaDB
+        self.chroma_client = chromadb.HttpClient(host=chroma_host, port=chroma_port)
+        self.collection = self.chroma_client.get_or_create_collection(
+            name="cv_embeddings",
             metadata={"hnsw:space": "cosine"}
         )
     
-    def add_chunks(self, cv_id: str, chunks: List[str], embeddings: List[List[float]], filename: str):
-        """Add CV chunks with metadata to preserve candidate identity"""
+    def extract_text_from_pdf(self, pdf_path: str) -> str:
+        """Extract full text from PDF"""
+        doc = fitz.open(pdf_path)
+        text = ""
+        for page in doc:
+            text += page.get_text()
+        doc.close()
+        return text.strip()
+    
+    def chunk_text(self, text: str, chunk_size: int = 500) -> List[str]:
+        """Simple chunking by character count with overlap"""
+        chunks = []
+        words = text.split()
+        current_chunk = []
+        current_length = 0
+        
+        for word in words:
+            current_chunk.append(word)
+            current_length += len(word) + 1
+            
+            if current_length >= chunk_size:
+                chunks.append(" ".join(current_chunk))
+                # Keep last 50 words for overlap
+                current_chunk = current_chunk[-50:]
+                current_length = sum(len(w) + 1 for w in current_chunk)
+        
+        if current_chunk:
+            chunks.append(" ".join(current_chunk))
+        
+        return chunks
+    
+    def ingest_cv(self, cv_path: str, cv_id: str, filename: str):
+        """Full ingestion pipeline: PDF → text → chunks → embeddings → ChromaDB"""
+        # Extract text
+        text = self.extract_text_from_pdf(cv_path)
+        
+        # Chunk text
+        chunks = self.chunk_text(text)
+        
+        # Generate embeddings
+        embeddings = self.embedder.encode(chunks).tolist()
+        
+        # Store in ChromaDB with metadata
         ids = [f"{cv_id}_chunk_{i}" for i in range(len(chunks))]
         metadatas = [
             {
                 "cv_id": cv_id,
                 "filename": filename,
                 "chunk_index": i,
-                "text": chunk[:500]  # Store preview
+                "text_preview": chunk[:200]
             }
             for i, chunk in enumerate(chunks)
         ]
@@ -155,389 +183,325 @@ class VectorStore:
             metadatas=metadatas,
             documents=chunks
         )
-    
-    def search(self, query_embedding: List[float], n_results: int = 5):
-        return self.collection.query(
-            query_embeddings=[query_embedding],
-            n_results=n_results,
-            include=["metadatas", "documents", "distances"]
-        )
+        
+        return {
+            "cv_id": cv_id,
+            "filename": filename,
+            "chunks_created": len(chunks),
+            "status": "ingested"
+        }
 ```
 
 **Acceptance Criteria**:
 
-- [ ] ChromaDB service in docker-compose.yml
-- [ ] Ollama service in docker-compose.yml
-- [ ] Persistent volumes configured (chroma_data, ollama_models)
-- [ ] `vector_store.py` stores chunks with candidate metadata
-- [ ] Can add multiple chunks per CV
-- [ ] Search returns metadata including cv_id and filename
-- [ ] Data persists after container restart
+- [ ] PyMuPDF extracts text from PDFs
+- [ ] Text chunked into ~500 char segments with overlap
+- [ ] Embeddings generated using sentence-transformers (local, no API calls)
+- [ ] Chunks stored in ChromaDB with cv_id and filename metadata
+- [ ] Can process multiple CVs sequentially
+- [ ] Embeddings persist in ChromaDB volume
 
 ---
 
-## Task 3: Embedding Service with BAAI/bge-m3 (45 min)
+## Task 3: RAG Query & LLM Integration (60 min)
 
-**Goal**: Generate embeddings using BAAI/bge-m3 multilingual model.
+**Goal**: Implement RAG retrieval and Llama 3.1 integration for competence matching.
 
-**Why**: Need vector representations for semantic search. BGE-M3 supports Italian and provides high-quality embeddings.
+**Why**: Core feature - retrieve relevant CV chunks and use LLM to analyze matches with scores.
 
 **Implementation**:
 
-Create `src/app/services/embeddings.py`:
+Create `src/app/services/rag.py`:
 
 ```python
-from langchain_community.embeddings import HuggingFaceEmbeddings
-from typing import List
+import ollama
+from sentence_transformers import SentenceTransformer
+import chromadb
+from typing import List, Dict
 
-class EmbeddingService:
-    def __init__(self):
-        # BAAI/bge-m3 multilingual model
-        model_name = "BAAI/bge-m3"
-        model_kwargs = {'device': 'cpu'}  # Use 'cuda' if GPU available
-        encode_kwargs = {'normalize_embeddings': True}
+class RAGService:
+    def __init__(self, chroma_host="chromadb", chroma_port=8000, ollama_host="http://ollama:11434"):
+        self.embedder = SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2')
+        self.chroma_client = chromadb.HttpClient(host=chroma_host, port=chroma_port)
+        self.collection = self.chroma_client.get_collection(name="cv_embeddings")
+        self.ollama_host = ollama_host
+    
+    def retrieve_relevant_chunks(self, query: str, top_k: int = 5) -> Dict:
+        """Semantic search in ChromaDB"""
+        query_embedding = self.embedder.encode([query])[0].tolist()
         
-        self.model = HuggingFaceEmbeddings(
-            model_name=model_name,
-            model_kwargs=model_kwargs,
-            encode_kwargs=encode_kwargs
+        results = self.collection.query(
+            query_embeddings=[query_embedding],
+            n_results=top_k,
+            include=["metadatas", "documents", "distances"]
         )
+        
+        return results
     
-    def embed_text(self, text: str) -> List[float]:
-        """Embed single text"""
-        return self.model.embed_query(text)
-    
-    def embed_documents(self, texts: List[str]) -> List[List[float]]:
-        """Embed multiple texts (chunks) in batch"""
-        return self.model.embed_documents(texts)
-```
+    def match_competence(self, competence: str, top_k: int = 3) -> Dict:
+        """RAG pipeline: Retrieve + LLM analysis"""
+        # Step 1: Retrieve relevant CV chunks
+        results = self.retrieve_relevant_chunks(competence, top_k)
+        
+        if not results['documents'][0]:
+            return {
+                "competence": competence,
+                "matches": [],
+                "message": "No relevant CVs found"
+            }
+        
+        # Step 2: Build context from retrieved chunks
+        context_parts = []
+        for i, (doc, metadata) in enumerate(zip(results['documents'][0], results['metadatas'][0])):
+            context_parts.append(
+                f"CV: {metadata['filename']}\n"
+                f"Content: {doc}\n"
+                f"---"
+            )
+        context = "\n".join(context_parts)
+        
+        # Step 3: Create LLM prompt
+        prompt = f"""You are a CV analyst. Analyze these CV excerpts to find candidates with the competence: "{competence}"
 
-Update `Dockerfile` to cache model:
+CV Excerpts:
+{context}
 
-```dockerfile
-# After installing dependencies
-RUN python -c "from langchain_community.embeddings import HuggingFaceEmbeddings; \
-    HuggingFaceEmbeddings(model_name='BAAI/bge-m3')"
+Task: For each CV, determine if the candidate has this competence and provide:
+1. Candidate name (from CV filename)
+2. Confidence score (0-100)
+3. Brief evidence (1 sentence)
+
+Format your response as:
+- Candidate Name | Score: XX | Evidence: <brief quote>
+
+Only include candidates with score > 40."""
+
+        # Step 4: Call Ollama (Llama 3.1 8B)
+        try:
+            response = ollama.chat(
+                model='llama3.1:8b',
+                messages=[{'role': 'user', 'content': prompt}],
+                options={'temperature': 0.3}  # Lower temperature for factual analysis
+            )
+            
+            return {
+                "competence": competence,
+                "llm_analysis": response['message']['content'],
+                "chunks_retrieved": len(results['documents'][0]),
+                "status": "success"
+            }
+        except Exception as e:
+            return {
+                "competence": competence,
+                "error": str(e),
+                "status": "failed"
+            }
 ```
 
 **Acceptance Criteria**:
 
-- [ ] `embeddings.py` service created
-- [ ] Uses BAAI/bge-m3 via LangChain
-- [ ] Generates 1024-dim vectors (BGE-M3 default)
-- [ ] Supports batch encoding for chunks
-- [ ] Normalized embeddings enabled
-- [ ] Model cached in Docker image
-- [ ] Fast inference (<200ms per CV with chunks)
+- [ ] RAG service queries ChromaDB with embedded competence
+- [ ] Returns top-k most relevant CV chunks
+- [ ] Constructs context with candidate metadata
+- [ ] Calls Ollama Llama 3.1 8B model
+- [ ] LLM returns structured analysis with scores
+- [ ] Handles cases with no matches gracefully
+- [ ] Preserves candidate identity in results
 
 ---
 
-## Task 4: API Endpoints with RAG (60 min)
+## Task 4: FastAPI Endpoints (45 min)
 
-**Goal**: Create endpoints for CV upload, search, and competence matching using RAG.
+**Goal**: Create API endpoints for CV ingestion and competence matching.
 
-**Why**: Need API to interact with the system and leverage LLM for intelligent matching.
+**Why**: Need HTTP API to interact with the RAG system from frontend.
 
 **Implementation**:
 
-Create `src/app/api/cv.py`:
+Create `src/app/api/cv_endpoints.py`:
 
 ```python
 from fastapi import APIRouter, UploadFile, File, HTTPException
-from typing import List
 from pydantic import BaseModel
+from typing import List
 import uuid
-import ollama
+import os
 
-from ..services.pdf_parser import PDFParser
-from ..services.embeddings import EmbeddingService
-from ..services.vector_store import VectorStore
+from ..services.ingestion import IngestionService
+from ..services.rag import RAGService
 
-router = APIRouter(prefix="/api/cv", tags=["cv"])
-parser = PDFParser()
-embedder = EmbeddingService()
-vector_store = VectorStore()
+router = APIRouter(prefix="/api", tags=["cv"])
 
-class CompetenceQuery(BaseModel):
+# Initialize services
+ingestion_service = IngestionService()
+rag_service = RAGService()
+
+class CompetenceMatchRequest(BaseModel):
     competences: List[str]
-    top_k: int = 5
+    top_k: int = 3
 
-@router.post("/upload")
+@router.post("/cv/upload")
 async def upload_cv(file: UploadFile = File(...)):
-    """Upload CV, extract text, chunk, embed, and store"""
+    """Upload CV PDF and ingest into vector database"""
     if not file.filename.endswith('.pdf'):
-        raise HTTPException(400, "Only PDF files accepted")
+        raise HTTPException(400, "Only PDF files are accepted")
     
-    # Save temp file
-    content = await file.read()
+    # Generate unique ID
     cv_id = str(uuid.uuid4())
     temp_path = f"/tmp/{cv_id}.pdf"
     
+    # Save uploaded file
+    content = await file.read()
     with open(temp_path, "wb") as f:
         f.write(content)
     
-    # Extract text and chunks
-    data = parser.extract_text(temp_path)
-    chunks = data["chunks"]
-    
-    # Generate embeddings for all chunks
-    embeddings = embedder.embed_documents(chunks)
-    
-    # Store chunks with metadata in vector DB
-    vector_store.add_chunks(
-        cv_id=cv_id,
-        chunks=chunks,
-        embeddings=embeddings,
-        filename=file.filename
-    )
-    
-    return {
-        "cv_id": cv_id,
-        "filename": file.filename,
-        "status": "processed",
-        "word_count": data["word_count"],
-        "chunk_count": data["chunk_count"]
-    }
-
-@router.post("/search")
-async def search_cvs(query: str, limit: int = 5):
-    """Semantic search across CV chunks"""
-    query_embedding = embedder.embed_text(query)
-    results = vector_store.search(query_embedding, n_results=limit)
-    
-    return {
-        "query": query,
-        "results": results
-    }
+    try:
+        # Ingest CV
+        result = ingestion_service.ingest_cv(temp_path, cv_id, file.filename)
+        os.remove(temp_path)  # Cleanup
+        return result
+    except Exception as e:
+        if os.path.exists(temp_path):
+            os.remove(temp_path)
+        raise HTTPException(500, f"Ingestion failed: {str(e)}")
 
 @router.post("/competences/match")
-async def match_competences(query: CompetenceQuery):
-    """RAG-based competence matching using Ollama + Llama 3.1"""
-    all_matches = []
+async def match_competences(request: CompetenceMatchRequest):
+    """Match multiple competences against all CVs using RAG"""
+    results = []
     
-    for competence in query.competences:
-        # Retrieve relevant CV chunks
-        comp_embedding = embedder.embed_text(competence)
-        results = vector_store.search(comp_embedding, n_results=query.top_k)
-        
-        # Build context from chunks
-        context = "\n\n".join([
-            f"Candidate: {r['metadatas'][0]['filename']}\n{r['documents'][0]}"
-            for r in results['results']
-        ])
-        
-        # LLM prompt for competence matching
-        prompt = f"""You are analyzing CVs for competence matching.
-
-Competence to find: {competence}
-
-Relevant CV excerpts:
-{context}
-
-Task: List candidates who have this competence with confidence scores (0-100).
-Format: "Candidate Name - Score: XX - Evidence: brief quote"
-"""
-        
-        # Call Ollama (Llama 3.1)
-        response = ollama.chat(
-            model='llama3.1:8b',
-            messages=[{'role': 'user', 'content': prompt}]
-        )
-        
-        all_matches.append({
-            "competence": competence,
-            "llm_response": response['message']['content'],
-            "retrieved_chunks": len(results['results'])
-        })
+    for competence in request.competences:
+        match_result = rag_service.match_competence(competence, request.top_k)
+        results.append(match_result)
     
-    return {"matches": all_matches}
+    return {
+        "matches": results,
+        "total_competences": len(request.competences)
+    }
+
+@router.get("/health")
+async def health_check():
+    """Health check endpoint"""
+    return {"status": "healthy", "service": "competence-mapping-ai"}
 ```
 
-Register router in `src/app/main.py`:
+Register in `src/app/main.py`:
 
 ```python
-from .api import cv
+from fastapi import FastAPI
+from .api.cv_endpoints import router as cv_router
 
-app.include_router(cv.router)
+app = FastAPI(title="Competence Mapping AI")
+
+app.include_router(cv_router)
+
+@app.get("/")
+async def root():
+    return {"message": "Competence Mapping AI - RAG System"}
 ```
 
 **Acceptance Criteria**:
 
 - [ ] `POST /api/cv/upload` accepts PDF files
-- [ ] Upload chunks CV and stores with metadata
-- [ ] `POST /api/cv/search` performs semantic search
-- [ ] Returns top matches with candidate names preserved
-- [ ] `POST /api/competences/match` uses RAG + Llama 3.1
-- [ ] LLM response includes confidence scores
-- [ ] All endpoints have proper error handling
+- [ ] Upload triggers full ingestion pipeline
+- [ ] Returns cv_id and chunk count
+- [ ] `POST /api/competences/match` accepts list of competences
+- [ ] Returns LLM analysis for each competence
+- [ ] `GET /health` returns service status
+- [ ] Proper error handling and HTTP status codes
+- [ ] File cleanup after processing
 
 ---
 
-## Task 5: Test Data Preparation (20 min)
+## Task 5: Simple Frontend (40 min - OPTIONAL)
 
-**Goal**: Create 5 dummy CVs for testing.
+**Goal**: Basic HTML interface for testing the RAG system.
 
-**Why**: Need test data without real personal info.
-
-**Implementation**:
-- Create `research/test_data/` directory
-- Generate dummy CVs with realistic content:
-  - Names: Mario Rossi, Laura Bianchi, etc.
-  - Skills: Python, Docker, Project Management, etc.
-  - Experience: 2-10 years in various roles
-- Use different formats/layouts
-- Include Italian and English content
-
-**Acceptance Criteria**:
-- [ ] 5-10 PDF files in `research/test_data/`
-- [ ] No real personal data
-- [ ] Realistic skills and experience
-- [ ] Mix of technical and non-technical roles
-- [ ] Different CV formats/layouts
-- [ ] Both Italian and English CVs
-
----
-
-## Task 6: Simple Upload UI with Competence Matching (30 min)
-
-**Goal**: Basic HTML form for CV upload and competence matching demo.
-
-**Why**: Need UI for testing RAG workflow end-to-end.
+**Note**: If time is limited, skip this and use cURL/Postman for testing.
 
 **Implementation**:
 
-Create `src/app/templates/index.html`:
+Create `src/app/static/index.html`:
 
 ```html
 <!DOCTYPE html>
 <html>
 <head>
-    <title>CV Competence Mapping - RAG Demo</title>
+    <title>Competence Mapping AI</title>
     <style>
-        body { font-family: Arial; max-width: 900px; margin: 50px auto; padding: 20px; }
-        h1 { color: #333; }
-        .section { border: 2px dashed #ccc; padding: 30px; margin: 20px 0; }
-        button { 
-            background: #007bff; 
-            color: white; 
-            padding: 10px 20px; 
-            border: none; 
-            cursor: pointer;
-            margin: 10px 5px;
-        }
+        body { font-family: Arial; max-width: 800px; margin: 40px auto; padding: 20px; }
+        .section { border: 1px solid #ddd; padding: 20px; margin: 20px 0; border-radius: 8px; }
+        button { background: #007bff; color: white; padding: 10px 20px; border: none; cursor: pointer; }
         button:hover { background: #0056b3; }
-        .results { margin-top: 20px; padding: 20px; background: #f5f5f5; }
-        .loading { color: #666; font-style: italic; }
         textarea { width: 100%; padding: 10px; margin: 10px 0; }
+        pre { background: #f5f5f5; padding: 15px; overflow: auto; }
     </style>
 </head>
 <body>
-    <h1>🧠 CV Competence Mapping - RAG Demo</h1>
-    <p><strong>Zero Data Leakage:</strong> All processing happens locally (Ollama + ChromaDB)</p>
+    <h1>🧠 Competence Mapping AI</h1>
+    <p><strong>Zero Data Leakage:</strong> All processing is local (Ollama + ChromaDB)</p>
     
-    <!-- Upload Section -->
     <div class="section">
-        <h2>1. Upload CV (PDF)</h2>
-        <form id="uploadForm" enctype="multipart/form-data">
-            <input type="file" id="fileInput" accept=".pdf" required>
-            <button type="submit">Upload & Process</button>
-        </form>
-        <div id="uploadResults" class="results" style="display:none;">
-            <h3>Upload Results:</h3>
-            <pre id="uploadText"></pre>
-        </div>
+        <h2>1. Upload CV</h2>
+        <input type="file" id="fileInput" accept=".pdf">
+        <button onclick="uploadCV()">Upload</button>
+        <pre id="uploadResult"></pre>
     </div>
     
-    <!-- Competence Matching Section -->
     <div class="section">
-        <h2>2. Match Competences (RAG + Llama 3.1)</h2>
-        <textarea id="competences" rows="4" placeholder="Enter competences (one per line):
-Python
-Project Management
-Docker"></textarea>
-        <button onclick="matchCompetences()">🔍 Find Matches</button>
-        <div id="matchResults" class="results" style="display:none;">
-            <h3>RAG Results:</h3>
-            <pre id="matchText"></pre>
-        </div>
+        <h2>2. Match Competences</h2>
+        <textarea id="competences" rows="5" placeholder="Python&#10;Docker&#10;Project Management"></textarea>
+        <button onclick="matchCompetences()">Match</button>
+        <pre id="matchResult"></pre>
     </div>
     
     <script>
-        // Upload CV
-        document.getElementById('uploadForm').onsubmit = async (e) => {
-            e.preventDefault();
+        async function uploadCV() {
+            const file = document.getElementById('fileInput').files[0];
+            if (!file) { alert('Select a PDF'); return; }
+            
             const formData = new FormData();
-            formData.append('file', document.getElementById('fileInput').files[0]);
+            formData.append('file', file);
             
-            document.getElementById('uploadResults').style.display = 'block';
-            document.getElementById('uploadText').textContent = 'Processing...';
-            
-            try {
-                const response = await fetch('/api/cv/upload', {
-                    method: 'POST',
-                    body: formData
-                });
-                const result = await response.json();
-                document.getElementById('uploadText').textContent = JSON.stringify(result, null, 2);
-            } catch (err) {
-                document.getElementById('uploadText').textContent = 'Error: ' + err.message;
-            }
-        };
+            document.getElementById('uploadResult').textContent = 'Processing...';
+            const res = await fetch('/api/cv/upload', { method: 'POST', body: formData });
+            const data = await res.json();
+            document.getElementById('uploadResult').textContent = JSON.stringify(data, null, 2);
+        }
         
-        // Match Competences
         async function matchCompetences() {
-            const competences = document.getElementById('competences').value
-                .split('\n')
-                .filter(c => c.trim().length > 0);
+            const competences = document.getElementById('competences').value.split('\n').filter(c => c.trim());
+            if (competences.length === 0) { alert('Enter competences'); return; }
             
-            if (competences.length === 0) {
-                alert('Please enter at least one competence');
-                return;
-            }
-            
-            document.getElementById('matchResults').style.display = 'block';
-            document.getElementById('matchText').textContent = 'Querying ChromaDB and Llama 3.1...';
-            
-            try {
-                const response = await fetch('/api/cv/competences/match', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({competences: competences, top_k: 3})
-                });
-                const result = await response.json();
-                document.getElementById('matchText').textContent = JSON.stringify(result, null, 2);
-            } catch (err) {
-                document.getElementById('matchText').textContent = 'Error: ' + err.message;
-            }
+            document.getElementById('matchResult').textContent = 'Querying...';
+            const res = await fetch('/api/competences/match', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({competences, top_k: 3})
+            });
+            const data = await res.json();
+            document.getElementById('matchResult').textContent = JSON.stringify(data, null, 2);
         }
     </script>
 </body>
 </html>
 ```
 
-Update `src/app/main.py`:
+Update `src/app/main.py` to serve static files:
 
 ```python
-from fastapi import Request
-from fastapi.templating import Jinja2Templates
-from fastapi.responses import HTMLResponse
+from fastapi.staticfiles import StaticFiles
 
-templates = Jinja2Templates(directory="src/app/templates")
-
-@app.get("/", response_class=HTMLResponse)
-async def root(request: Request):
-    return templates.TemplateResponse("index.html", {"request": request})
+app.mount("/static", StaticFiles(directory="src/app/static"), name="static")
 ```
 
 **Acceptance Criteria**:
 
-- [ ] HTML form at `/` root path
-- [ ] File upload section with PDF validation
-- [ ] Competence matching section with textarea
-- [ ] Both sections show loading states
-- [ ] Results displayed as formatted JSON
-- [ ] Works in modern browsers
-- [ ] Shows "Zero Data Leakage" notice
+- [ ] Simple HTML UI at `/static/index.html`
+- [ ] CV upload form working
+- [ ] Competence matching form working
+- [ ] Results displayed in readable format
+- [ ] OR skip this task and use API testing tools
 
 ---
 
@@ -545,56 +509,89 @@ async def root(request: Request):
 
 **Must Have**:
 
-- [ ] Upload PDF → returns extracted text with chunks
-- [ ] ChromaDB + Ollama services running
-- [ ] BAAI/bge-m3 embeddings working
-- [ ] Search returns results with candidate metadata preserved
-- [ ] RAG competence matching with Llama 3.1 works
-- [ ] `docker compose up` works
-- [ ] Basic UI form functional with both upload and matching
+- [ ] Docker Compose with all 3 services running
+- [ ] CV upload ingestion pipeline working (PDF → ChromaDB)
+- [ ] RAG competence matching with Llama 3.1 working
+- [ ] Results preserve candidate identity (filename/cv_id)
+- [ ] Data persists in Docker volumes
+- [ ] Zero data leakage (fully local processing)
 
 **Stretch Goals** (if time permits):
 
-- [ ] Batch CV upload
-- [ ] Better chunk metadata (skills extraction)
-- [ ] LLM response parsing and scoring
-- [ ] Error handling and retry logic
+- [ ] Frontend UI (React/shadcn or HTML/JS)
+- [ ] Batch CV upload endpoint
+- [ ] Better prompt engineering for LLM
+- [ ] Caching for repeated queries
 
 ---
 
-## Quick Start
+## Quick Start Commands
 
 ```bash
-# 1. Install Ollama and pull Llama 3.1
+# 1. Pull Ollama model (do this first, takes time!)
 ollama pull llama3.1:8b
 
-# 2. Install dependencies
+# 2. Start all services
 cd competence-mapping-ai
-uv sync
-
-# 3. Start services (ChromaDB + Ollama + App)
 docker compose up -d
 
-# 4. Open UI
-open http://localhost:8000
+# 3. Check service health
+curl http://localhost:11434/api/tags        # Ollama models
+curl http://localhost:8001/api/v1/heartbeat # ChromaDB
+curl http://localhost:8000/health           # Backend API
 
-# 5. Test upload via API
-curl -X POST -F "file=@research/test_data/cv-mario-rossi.pdf" \
+# 4. Upload a CV
+curl -X POST -F "file=@research/test_data/cv-example.pdf" \
     http://localhost:8000/api/cv/upload
 
-# 6. Test competence matching via API
+# 5. Match competences
 curl -X POST -H "Content-Type: application/json" \
-    -d '{"competences":["Python","Docker"],"top_k":3}' \
-    http://localhost:8000/api/cv/competences/match
+    -d '{"competences":["Python","Docker","Leadership"],"top_k":3}' \
+    http://localhost:8000/api/competences/match
 ```
+
+---
 
 ## Testing Checklist
 
-1. **Prepare test data**: Create 5-10 dummy CVs with varied skills
-2. **Start services**: `docker compose up -d`
-3. **Verify Ollama**: `curl http://localhost:11434/api/tags`
-4. **Verify ChromaDB**: `curl http://localhost:8001/api/v1/heartbeat`
-5. **Upload CVs**: Via UI at http://localhost:8000
-6. **Check embeddings**: Verify chunks stored in ChromaDB
-7. **Test RAG**: Query competences and check LLM responses
-8. **Validate metadata**: Ensure candidate names preserved in results
+1. [ ] All services start with `docker compose up -d`
+2. [ ] Ollama accessible at `localhost:11434`
+3. [ ] ChromaDB accessible at `localhost:8001`
+4. [ ] Backend API accessible at `localhost:8000`
+5. [ ] Upload 3-5 test CVs successfully
+6. [ ] Query a competence and get LLM response with scores
+7. [ ] Restart containers and verify data persists
+8. [ ] Check that candidate names/filenames are preserved in results
+
+---
+
+## Time Allocation
+
+- **Task 1 - Docker Services**: 30 minutes
+- **Task 2 - PDF & Embedding**: 45 minutes  
+- **Task 3 - RAG & LLM**: 60 minutes
+- **Task 4 - API Endpoints**: 45 minutes
+- **Task 5 - Frontend** (optional): 40 minutes
+- **Total**: 3-4 hours
+
+---
+
+## Architecture Summary
+
+```
+┌─────────────┐      ┌──────────────────┐      ┌─────────────┐
+│  Frontend   │─────▶│ fastapi_backend  │─────▶│   ollama    │
+│ (Optional)  │      │  - Orchestrator  │      │ (Llama 3.1) │
+└─────────────┘      │  - RAG Logic     │      └─────────────┘
+                     │  - Embeddings    │
+                     └────────┬─────────┘
+                              │
+                              ▼
+                     ┌─────────────────┐
+                     │    chromadb     │
+                     │ (Vector Store)  │
+                     └─────────────────┘
+
+Volumes: ollama_models, chroma_data, /curricula
+```
+
