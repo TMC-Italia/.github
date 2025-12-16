@@ -28,9 +28,9 @@
 
 ### ☁️ Cloud
 
-- [ ] Fresh Ubuntu 22.04 LTS installed on test PC (with VM snapshot)
+- [ ] 3x Fresh Ubuntu 22.04 LTS PCs (each with 1 SSD)
 - [ ] Tailscale pre-auth keys generated
-- [ ] Static IPs documented (Master: 192.168.1.100, Worker: 192.168.1.101, etc.)
+- [ ] Static IPs planned (192.168.1.100-102)
 - [ ] tmc-cloud repo cloned with executable scripts
 
 ### 🧠 AI
@@ -66,39 +66,55 @@
 
 ## Project Goals & Tasks
 
-### ☁️ Cloud: "Automated Node Setup"
+### ☁️ Cloud: "3-Node Cluster with Distributed Storage"
 
-**Goal**: Single script to bootstrap Ubuntu → production node
+**Goal**: Automated setup for 3-node cluster with networking, security, distributed storage, and visible management
 
-**Tasks** (3.5h total):
+**Tasks** (4.5h total):
 
-1. **Bootstrap Script** (90min)
-   - Create `scripts/bootstrap-node.sh` with role selection
-   - Call existing scripts in sequence
-   - Add basic error handling
+1. **Node Setup Script** (90min)
+   - Create `scripts/setup-node.sh` for automated PC setup
+   - Configure static IP and hostname
+   - Install Docker, basic packages
+   - Auto-connect to Tailscale with pre-auth key
+   - System hardening basics
 
-2. **Security Hardening** (60min)
-   - UFW firewall with role-based rules
-   - SSH key-only auth (no passwords)
-   - Basic fail2ban setup
+2. **Security & Firewall** (45min)
+   - Create `scripts/configure-security.sh`
+   - UFW firewall with required ports (SSH, Tailscale, storage)
+   - SSH hardening (key-only auth, no root)
+   - Install fail2ban
 
-3. **Network + Storage** (60min)
-   - Static IP configuration
-   - NFS server on storage node
-   - NFS client mounts on others
+3. **Distributed Storage Research & Setup** (105min)
+   - **Phase 1: Research (30min)** - Evaluate options:
+     - MicroCeph (simplified Ceph)
+     - GlusterFS (simple replication)
+     - Longhorn (Kubernetes-native)
+     - Ceph (full-featured)
+   - **Phase 2: Implementation (75min)** - Deploy chosen solution
+   - Configure 3-node cluster using each PC's SSD
+   - Setup replication and fault tolerance
+   - Test storage accessibility from all nodes
 
-4. **Validation** (30min)
-   - Create `validate-node.sh` script
-   - Check: Docker, network, SSH, storage
+4. **Visible Management & Monitoring** (60min)
+   - Deploy Portainer (container management UI)
+   - Deploy Grafana + Loki (monitoring & logs)
+   - Configure dashboards showing cluster health
+   - Create demo script for management
 
 **Success Criteria**:
 
-- Bootstrap script runs without manual intervention
-- PC accessible via SSH with keys
-- Docker installed and running
-- Static IP configured
-- Storage mounted (if worker/master)
-- Validation script passes all checks
+- Single command to setup fresh PC
+- All 3 nodes with static IPs and Tailscale connected
+- SSH accessible with keys only (hardened)
+- Firewall enabled and configured
+- Storage solution chosen and documented
+- Distributed storage operational across 3 nodes
+- Data accessible from all nodes
+- Storage survives single node failure
+- **Portainer UI accessible showing all 3 nodes**
+- **Grafana showing live logs from entire cluster**
+- **Can demonstrate working cluster to management**
 
 ### 🧠 AI: "RAG-based CV Competence Matching"
 

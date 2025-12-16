@@ -1,211 +1,214 @@
 # Cloud Project - Hackathon Tasks
 
-**Duration**: 4 Hours  
-**Goal**: One script transforms fresh Ubuntu PC → storage and visible output
+**Duration**: 4.5 Hours (with 30 min buffer)  
+**Goal**: Automated setup for 3-node cluster with networking, security, distributed storage, and visible management tools
 
 ## Pre-Event Checklist
 
-- [ ] Fresh Ubuntu 22.04 LTS on test PC (with VM snapshot)
+- [ ] 3x Fresh Ubuntu 22.04 LTS PCs (each with 1 SSD)
 - [ ] Tailscale pre-auth keys generated
-- [ ] Static IPs documented (192.168.1.100-103)
+- [ ] Static IPs planned (192.168.1.100-102)
 - [ ] tmc-cloud repo cloned with executable scripts
 
 ---
 
-## Task 1: Bootstrap Script (90 min)
+## Task 1: Node Setup Script (90 min)
 
-**Goal**: Create orchestration script for automated node setup.
+**Goal**: One-command setup script for fresh PC → fully configured node.
 
-**Why**: Manual setup is error-prone. Need repeatable automation.
+**Why**: Eliminate manual setup errors and save time.
 
 **Implementation**:
-- Create `scripts/bootstrap-node.sh`
-- Accept `--role=<master|worker|storage>` flag
-- Call existing scripts: setup-environment.sh → configure-network.sh
-- Basic logging to `/var/log/tmc-cloud/bootstrap.log`
-- Simple error handling (exit on failure)
+- Create `scripts/setup-node.sh`
+- Install base packages: Docker, git, curl
+- Configure static IP via netplan
+- Set hostname based on node role
+- Install and configure Tailscale with pre-auth key
+- Basic system hardening
 
 **Acceptance Criteria**:
-- [ ] `./scripts/bootstrap-node.sh` completes without errors
-- [ ] Supports `--role=<master|worker|storage>` CLI flag
-- [ ] Logs to `/var/log/tmc-cloud/bootstrap.log`
-- [ ] Shows progress (Step 1/4, 2/4, etc.)
-- [ ] Exits with error code on failure
-- [ ] Tested on fresh Ubuntu 22.04 VM
+- [ ] Single command: `./scripts/setup-node.sh --ip=192.168.1.100 --hostname=tmc-node1`
+- [ ] Static IP configured and persists after reboot
+- [ ] Hostname set correctly
+- [ ] Tailscale connected automatically (no manual auth)
+- [ ] DNS resolution works
+- [ ] Docker installed and running
+- [ ] Script tested on fresh Ubuntu 22.04
 
 ---
 
-## Task 2: Security & Firewall (60 min)
+## Task 2: Security & Firewall (45 min)
 
-**Goal**: Basic firewall and SSH hardening.
+**Goal**: Lock down nodes with firewall and SSH hardening.
 
-**Why**: Prevent unauthorized access.
+**Why**: Basic security is essential for production use.
 
 **Implementation**:
 - Create `scripts/configure-security.sh`
-- UFW basic rules:
-  - Allow: SSH (22), Docker (2376), Portainer (9000)
-  - Storage role: Also allow NFS (2049)
-- SSH hardening: Disable password auth, require keys only
-- Install fail2ban with default SSH jail
+- Configure UFW firewall:
+  - Allow: SSH (22), Tailscale (41641/udp)
+  - Storage-specific: Ceph ports (6789, 6800-7300)
+- SSH hardening:
+  - Disable password auth
+  - Key-only authentication
+  - Disable root login
+- Install fail2ban for SSH protection
 
 **Acceptance Criteria**:
-- [ ] UFW enabled with correct ports per role
-- [ ] SSH hardened (key-only auth, no root)
-- [ ] fail2ban active and monitoring SSH
-- [ ] Original configs backed up
-- [ ] Can still SSH with key-based auth
-- [ ] `sudo ufw status` shows correct rules
+- [ ] UFW enabled with correct rules
+- [ ] SSH accessible only with keys
+- [ ] fail2ban active and monitoring
+- [ ] Can still connect via SSH keys
+- [ ] Firewall rules persist after reboot
+- [ ] `sudo ufw status` shows all required ports
 
 ---
 
-## Task 3: Network Automation (45 min)
+## Task 3: Distributed Storage Investigation & Setup (105 min)
 
-**Goal**: Automate static IP and hostname setup.
+**Goal**: Research and implement distributed storage solution for 3-node cluster.
 
-**Why**: Manual network config is error-prone.
+**Why**: Need shared, fault-tolerant storage across all nodes using available SSDs.
 
-**Implementation**:
+**Phase 1: Research (30 min)**
+Evaluate these options for 3 nodes with 1 SSD each:
+- **Ceph** (industry standard, complex setup)
+- **MicroCeph** (simplified Ceph deployment)
+- **GlusterFS** (simpler alternative)
+- **Longhorn** (Kubernetes-native)
 
-- Enhance `scripts/configure-network.sh`
-- Accept IP and hostname as arguments
-- Configure netplan for static IP
-- Set hostname in /etc/hostname
+Document findings: ease of setup, resource requirements, fault tolerance.
 
-**Acceptance Criteria**:
-- [ ] Static IP configured correctly
-- [ ] Hostname set and persists after reboot
-- [ ] DNS resolution works (ping google.com)
-- [ ] All nodes in `/etc/hosts`
-- [ ] Network config survives reboot
+**Phase 2: Implementation (75 min)**
+Based on research, implement chosen solution:
 
----
+**Option A: MicroCeph** (Recommended for simplicity)
+- Install MicroCeph on all 3 nodes
+- Bootstrap cluster on first node
+- Add remaining nodes to cluster
+- Create storage pool using SSDs
+- Configure basic replication
 
-## Task 4: Storage Setup (30 min)
-
-**Goal**: Configure NFS server/client for shared storage across nodes.
-
-**Why**: Kubernetes needs persistent storage accessible from any node.
-
-**Implementation**:
-- Storage node: install NFS server, export `/srv/nfs/storage`
-- Other nodes: install NFS client, mount to `/mnt/shared`
-- Add fstab entries for persistence
-- Set proper permissions (nobody:nogroup)
+**Option B: GlusterFS** (If Ceph too complex)
+- Install GlusterFS on all nodes
+- Create replicated volume across 3 nodes
+- Mount on all nodes at `/mnt/shared`
+- Test replication and failover
 
 **Acceptance Criteria**:
-- [ ] NFS server running on storage node
-- [ ] Clients mount `/mnt/shared` automatically
-- [ ] Mounts persist across reboots
+- [ ] Research documented with recommendation
+- [ ] Storage solution deployed on all 3 nodes
+- [ ] Each node's SSD integrated into cluster
+- [ ] Storage accessible from all nodes
 - [ ] Can write/read files from any node
-- [ ] Minimum 50GB free space verified
+- [ ] Data persists if 1 node fails (fault tolerance)
+- [ ] Configuration survives reboot
+- [ ] Basic performance test completed
 
 ---
 
-## Task 5: Portainer Deployment (30 min)
+## Task 4: Visible Management & Monitoring (60 min)
 
-**Goal**: Deploy Portainer for Docker management with web UI.
+**Goal**: Deploy web-based tools to demonstrate working cluster to management.
 
-**Why**: Provides easy-to-use interface for managing containers across cluster.
+**Why**: Management needs to see tangible proof that the infrastructure is operational. Web UIs provide immediate visual confirmation of cluster health, container status, and system metrics.
 
 **Implementation**:
+
+**Phase 1: Portainer Deployment (30 min)**
 - Create `scripts/deploy-portainer.sh`
-- Master: deploy Portainer Server on port 9000
-- Workers: deploy Portainer Agent on port 9001
-- Use persistent volume for data
-- Set restart policy to `always`
+- Deploy Portainer Server on primary node (port 9000)
+- Deploy Portainer Agents on remaining nodes (port 9001)
+- Use persistent volume on distributed storage
+- Configure agent connection to server
+
+**Phase 2: Monitoring Stack (30 min)**
+- Create `docker-compose-monitoring.yml` with:
+  - **Grafana** (port 3000) - visualization dashboard
+  - **Loki** (port 3100) - log aggregation
+  - **Promtail** - log collector on each node
+- Configure Grafana with Loki data source
+- Create basic dashboard showing:
+  - Node status (up/down)
+  - Container count
+  - Recent logs from all nodes
 
 **Acceptance Criteria**:
-- [ ] Portainer Server accessible at `http://<master-ip>:9000`
-- [ ] Admin account created
-- [ ] Agents deployed on worker nodes
-- [ ] All nodes visible in Portainer UI
-- [ ] Can manage containers through web interface
+- [ ] Portainer Server accessible at `http://<node-ip>:9000`
+- [ ] All 3 nodes visible in Portainer UI
+- [ ] Can view container list across cluster
+- [ ] Grafana accessible at `http://<node-ip>:3000`
+- [ ] Grafana shows live logs from all nodes via Loki
+- [ ] Dashboard displays cluster health metrics
+- [ ] Can demonstrate to management: "3 nodes, X containers, live logs"
+- [ ] All services use distributed storage (survive node restart)
 
----
-
-## Task 6: Tailscale Integration (30 min)
-
-**Goal**: Auto-connect nodes to Tailscale VPN using pre-auth keys.
-
-**Why**: Manual authentication interrupts automation. Need headless setup.
-
-**Implementation**:
-- Enhance `scripts/setup-tailscale.sh`
-- Read auth key from `TAILSCALE_AUTH_KEY` environment variable
-- Connect with pre-auth: `tailscale up --authkey=$KEY --hostname=tmc-$ROLE`
-- Verify connection before continuing
-
-**Acceptance Criteria**:
-- [ ] Tailscale connects without user interaction
-- [ ] No browser login required
-- [ ] Node appears in Tailscale admin console
-- [ ] Can ping other Tailscale nodes
-- [ ] Connection survives reboot
-
----
-
-## Task 7: Validation Script (15 min)
-
-**Goal**: Create automated validation to verify all components working.
-
-**Why**: Need quick way to confirm node is properly configured.
-
-**Implementation**:
-Create `scripts/validate-node.sh` that checks:
-- Docker is running (`docker ps`)
-- Portainer accessible (curl localhost:9000)
-- Tailscale connected (`tailscale status`)
-- Storage mounted and writable
-- Firewall enabled with correct rules
-
-**Acceptance Criteria**:
-- [ ] Script shows ✓/✗ for each check
-- [ ] Clear pass/fail summary
-- [ ] Exit code 0 on success, 1 on failure
-- [ ] All checks pass on properly configured node
+**Demo Script for Management**:
+1. Open Portainer → Show all 3 nodes connected
+2. Show running containers across cluster
+3. Open Grafana → Show live system logs
+4. Restart one node → Show cluster still operational
+5. Show logs of the restart event
 
 ---
 
 ## Overall Success Criteria
 
-**Must Have**:
-- [ ] Bootstrap script runs on Ubuntu 22.04
-- [ ] SSH accessible with keys
-- [ ] Docker installed
-- [ ] Static IP configured
-- [ ] Validation script created
+**Must Have (Demo-Ready)**:
+
+- [ ] All 3 nodes have static IPs configured
+- [ ] Tailscale connected on all nodes
+- [ ] SSH hardened (key-only access)
+- [ ] Firewall enabled and configured
+- [ ] Distributed storage solution chosen and documented
+- [ ] Storage accessible from all nodes
+- [ ] **Portainer UI showing all 3 nodes**
+- [ ] **Grafana + Loki showing live cluster logs**
 
 **Stretch Goals** (if time permits):
-- [ ] Portainer deployed
-- [ ] Tailscale connected
-- [ ] NFS storage mounted
+
+- [ ] Automated validation script
+- [ ] Storage performance benchmarks
+- [ ] Additional Grafana dashboards (CPU, memory, disk)
+- [ ] Alerting rules configured
 
 ---
 
 ## Quick Start
 
 ```bash
-# 1. Prepare
+# 1. Clone repo
 git clone https://github.com/TMC-Italia/tmc-cloud
 cd tmc-cloud
 chmod +x scripts/*.sh
 
 # 2. Set environment
 export TAILSCALE_AUTH_KEY=tskey-auth-xxxxx
-export ROLE=master  # or worker, storage
 
-# 3. Bootstrap
-./scripts/bootstrap-node.sh
+# 3. Run on each node
+./scripts/setup-node.sh --ip=192.168.1.100 --hostname=tmc-node1
 
-# 4. Validate
-./scripts/validate-node.sh
+# 4. Configure security
+./scripts/configure-security.sh
+
+# 5. Setup storage (after research phase)
+# Follow chosen solution's setup guide
+
+# 6. Deploy management tools
+./scripts/deploy-portainer.sh
+docker-compose -f docker-compose-monitoring.yml up -d
+
+# 7. Access UIs
+# Portainer: http://192.168.1.100:9000
+# Grafana: http://192.168.1.100:3000
 ```
 
-## Testing
+## Testing Strategy
 
-Use VM snapshots to test iterations:
+Use VM snapshots for safe iteration:
+
 1. Create Ubuntu 22.04 VM → take snapshot
-2. Run bootstrap script
-3. If fails → restore snapshot and fix
-4. Repeat until validation passes
+2. Run setup scripts
+3. If fails → restore snapshot and iterate
+4. Test storage failover scenarios
+5. Document final configuration
