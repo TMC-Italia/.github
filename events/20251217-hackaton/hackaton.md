@@ -84,7 +84,7 @@
 - [ ] Grafana showing live logs from entire cluster
 - [ ] Can demonstrate working cluster to management
 
-📋 **Detailed Tasks**: See [tmc-cloud README.md](../tmc-cloud/README.md)
+📋 **Detailed Tasks**: See [Cloud task](./issues/hackathon-cloud-tasks.md)
 
 ### 🧠 AI: "RAG-based CV Competence Matching with Zero Data Leakage"
 
@@ -102,7 +102,7 @@
 - [ ] Results preserve candidate identity (filename/cv_id)
 - [ ] Zero data leakage (fully local processing)
 
-📋 **Detailed Tasks**: See [hackathon-ai-tasks.md](./issues/hackathon-ai-tasks.md)
+📋 **Detailed Tasks**: See [AI Tasks](./issues/hackathon-ai-tasks.md)
 
 ### 📍 Places: "Backend Testing, Code Quality & Deployment"
 
@@ -118,5 +118,5 @@
 - [ ] Deployment documentation written
 - [ ] (Stretch) Application deployed to tmc-cloud
 
-📋 **Detailed Tasks**: See [tmc-places docs/](../tmc-places/docs/)
+📋 **Detailed Tasks**: See [Places Tasks](./issues/hackathon-places-tasks.md)
 
