@@ -39,7 +39,21 @@
 
 ### 📍 Places
 
-## Team Assignments (11 people)
+## Team Assignments
+
+1. Matilde Campo
+2. Beatrice Pazzucconi
+3. Francesco Vattiato
+4. Walter Maltese
+5. Thomas Verardo
+6. Roberto Valendino
+7. Mattia Campana
+8. Marco Selva
+9. Flavio Renzio
+10. Zaccaria Carrettoni
+11. Alberto Macaluso (online)
+12. Alessandro Lisi
+
 
 ### 🧠 AI (Reviewer: Alessandro)
 
