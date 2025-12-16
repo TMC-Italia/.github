@@ -147,30 +147,42 @@
 - UI shows RAG results with LLM responses
 - Zero data leakage (all local processing)
 
-### 📍 Places: "Testing + Polish"
+### 📍 Places: "Backend Testing, Code Quality & Deployment"
 
-**Goal**: Add tests, linting, better UX
+**Goal**: Backend testing, code quality improvements, CI/CD setup, and deployment to tmc-cloud
 
-**Tasks** (3.5h total):
+**Tasks** (4h total):
 
-1. **Backend Quality** (120min)
-   - Setup pytest with fixtures
+1. **Backend Testing** (90min)
+   - Setup pytest with test structure
    - Write tests for main API endpoints
-   - Add ruff + mypy to pyproject.toml
-   - Create basic CI workflow
+   - Basic test coverage for critical paths
+   - Tests pass with coverage report
 
-2. **Frontend Polish** (120min)
-   - Setup Vitest + React Testing Library
-   - Test 2-3 key components
-   - Add loading spinners
-   - Error boundaries
-   - Toast notifications
+2. **Code Quality Tools** (45min)
+   - Add ruff for linting and formatting
+   - Configure pyproject.toml with quality tools
+   - Create Makefile with lint/format/test commands
+   - Fix all linting errors
+
+3. **CI/CD Pipeline** (45min)
+   - Create GitHub Actions workflow
+   - Automate testing on PRs
+   - Enforce linting checks
+   - Test workflow runs successfully
+
+4. **Deployment Preparation** (60min)
+   - Create Kubernetes manifests (namespace, deployment, service)
+   - Prepare deployment documentation
+   - Test Docker build process
+   - (Optional) Deploy to tmc-cloud cluster if time permits
 
 **Success Criteria**:
 
-- Backend: 5+ tests passing
-- Frontend: 3+ component tests passing
-- Linting configured (ruff, eslint)
-- UI shows loading states
-- UI handles errors gracefully
-- CI workflow file exists (doesn't need to run)
+- Backend: 5+ tests passing with coverage report
+- Linting configured and passing (ruff)
+- Makefile with lint/format/test commands
+- CI workflow running on GitHub Actions
+- Kubernetes deployment manifests created
+- Deployment documentation written
+- (Stretch) Application deployed to tmc-cloud

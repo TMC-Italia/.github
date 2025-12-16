@@ -1,36 +1,42 @@
 # Places Project - Hackathon Tasks
 
 **Duration**: 4 Hours  
-**Goal**: Add testing backend, improve code quality, CI/CD improvements.
+**Goal**: Backend testing, code quality improvements, CI/CD setup, and deployment to tmc-cloud.
 
 ## Pre-Event Checklist
 
-- [ ] mock_data.json created for Graph API testing
-- [ ] Development environment running (`npm install` + `uv sync`)
+- [ ] Development environment running (`cd tmc-places/backend && uv sync`)
+- [ ] Verify project structure
 
 ---
 
-## Task 1: Backend Unit Tests (60 min)
+## Task 1: Backend Testing (90 min)
 
-**Goal**: Setup pytest with basic tests.
-
-**Why**: Need automated testing for reliability.
+**Goal**: Setup pytest with basic test coverage for critical endpoints.
 
 **Implementation**:
 
-Create `backend/tests/` structure:
-
+1. Create `backend/tests/` structure:
 ```
 tests/
 ├── __init__.py
 ├── conftest.py
 ├── test_api.py
-├── test_services.py
-└── test_graph_client.py
+└── test_services.py
 ```
 
-`conftest.py` with fixtures:
+2. Add test dependencies to `backend/pyproject.toml`:
+```toml
+[dependency-groups]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.23.0",
+    "pytest-cov>=4.1.0",
+    "httpx>=0.27.0",
+]
+```
 
+3. Create basic fixtures in `conftest.py`:
 ```python
 import pytest
 from fastapi.testclient import TestClient
@@ -39,136 +45,39 @@ from src.main import app
 @pytest.fixture
 def client():
     return TestClient(app)
-
-@pytest.fixture
-def mock_graph_response():
-    return {
-        "value": [
-            {
-                "id": "room-001",
-                "displayName": "Meeting Room 1",
-                "capacity": 10
-            }
-        ]
-    }
 ```
 
-`test_api.py`:
-
+4. Write tests for main API endpoints in `test_api.py`:
 ```python
-def test_get_places(client, mock_graph_response):
+def test_health_check(client):
+    response = client.get("/health")
+    assert response.status_code == 200
+
+def test_get_places(client):
     response = client.get("/api/places")
     assert response.status_code == 200
-    assert "places" in response.json()
-
-def test_get_bookings_by_date(client):
-    response = client.get("/api/bookings?date=2025-12-11")
-    assert response.status_code == 200
 ```
 
 **Acceptance Criteria**:
-- [ ] `tests/` directory with pytest structure
-- [ ] Fixtures for mocking Graph API responses
-- [ ] Tests for all API endpoints
-- [ ] Tests for services layer
-- [ ] Coverage >80% (`pytest --cov`)
-- [ ] All tests pass (`pytest`)
+- [ ] Tests directory created with basic structure
+- [ ] At least 5 tests covering main endpoints
+- [ ] All tests pass (`cd backend && uv run pytest`)
+- [ ] Basic coverage report (`uv run pytest --cov=src`)
 
 ---
 
-## Task 2: Frontend Unit Tests (45 min)
+## Task 2: Code Quality Tools (45 min)
 
-**Goal**: Setup Vitest for component tests.
-
-**Why**: Catch UI bugs early.
+**Goal**: Add ruff for linting and code formatting.
 
 **Implementation**:
 
-Install dependencies:
-
-```bash
-cd frontend
-npm install -D vitest @testing-library/react @testing-library/jest-dom @testing-library/user-event jsdom
-```
-
-Add to `package.json`:
-
-```json
-{
-  "scripts": {
-    "test": "vitest",
-    "test:ui": "vitest --ui",
-    "test:coverage": "vitest --coverage"
-  }
-}
-```
-
-Create `vite.config.js` test config:
-
-```js
-import { defineConfig } from 'vite'
-import react from '@vitejs/plugin-react'
-
-export default defineConfig({
-  plugins: [react()],
-  test: {
-    globals: true,
-    environment: 'jsdom',
-    setupFiles: './src/test/setup.ts',
-  },
-})
-```
-
-Example test `src/components/__tests__/MapView.test.tsx`:
-
-```tsx
-import { render, screen } from '@testing-library/react'
-import { MapView } from '../MapView'
-
-describe('MapView', () => {
-  it('renders office map', () => {
-    render(<MapView />)
-    expect(screen.getByRole('img')).toBeInTheDocument()
-  })
-
-  it('highlights available rooms in green', () => {
-    const rooms = [{ id: '1', status: 'available' }]
-    render(<MapView rooms={rooms} />)
-    expect(screen.getByTestId('room-1')).toHaveClass('available')
-  })
-})
-```
-
-**Acceptance Criteria**:
-- [ ] Vitest configured and running
-- [ ] Tests for MapView component
-- [ ] Tests for RoomStatus component
-- [ ] Tests for DatePicker component
-- [ ] Tests for API hooks
-- [ ] `npm test` passes all tests
-
----
-
-## Task 3: Code Quality Tools (30 min)
-
-**Goal**: Add ruff and mypy to backend.
-
-**Why**: Consistent code style and type checking.
-
-**Implementation**:
-
-Update `pyproject.toml`:
-
+1. Add ruff to `backend/pyproject.toml`:
 ```toml
 [dependency-groups]
 dev = [
-    "pytest>=8.0.0",
-    "pytest-asyncio>=0.23.0",
-    "pytest-cov>=4.1.0",
-    "httpx>=0.27.0",
+    # ... existing deps
     "ruff>=0.3.0",
-    "black>=24.0.0",
-    "mypy>=1.9.0",
 ]
 
 [tool.ruff]
@@ -177,358 +86,171 @@ target-version = "py311"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "N", "W"]
-
-[tool.black]
-line-length = 100
-target-version = ['py311']
-
-[tool.mypy]
-python_version = "3.11"
-strict = true
+ignore = []
 ```
 
-Add to `Makefile`:
-
+2. Update or create `Makefile` in project root:
 ```makefile
+.PHONY: lint test format
+
 lint:
-	cd backend && uv run ruff check src/
-	cd backend && uv run mypy src/
+	cd tmc-places/backend && uv run ruff check src/
 
 format:
-	cd backend && uv run black src/
-	cd backend && uv run ruff check --fix src/
+	cd tmc-places/backend && uv run ruff check --fix src/
+	cd tmc-places/backend && uv run ruff format src/
 
 test:
-	cd backend && uv run pytest --cov=src --cov-report=html
+	cd tmc-places/backend && uv run pytest --cov=src
 ```
 
-**Acceptance Criteria**:
-- [ ] Ruff configured and passes
-- [ ] Black formats code consistently
-- [ ] Mypy type checking passes
-- [ ] All imports sorted (ruff I)
-- [ ] No linting errors
-- [ ] `make lint` passes
-
----
-
-## Task 4: UI/UX Improvements (60 min)
-
-**Goal**: Add loading states and error handling.
-
-**Why**: Better user experience.
-
-**Implementation**:
-
-Create `src/components/LoadingSpinner.tsx`:
-
-```tsx
-export const LoadingSpinner = () => (
-  <div className="flex items-center justify-center p-8">
-    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500" />
-  </div>
-)
-```
-
-Create `src/components/ErrorBoundary.tsx`:
-
-```tsx
-import { Component, ReactNode } from 'react'
-
-export class ErrorBoundary extends Component<
-  { children: ReactNode },
-  { hasError: boolean }
-> {
-  state = { hasError: false }
-
-  static getDerivedStateFromError() {
-    return { hasError: true }
-  }
-
-  render() {
-    if (this.state.hasError) {
-      return (
-        <div className="p-4 bg-red-50 border border-red-200 rounded">
-          <h2 className="text-red-800 font-bold">Something went wrong</h2>
-          <button onClick={() => this.setState({ hasError: false })}>
-            Try again
-          </button>
-        </div>
-      )
-    }
-    return this.props.children
-  }
-}
-```
-
-Add toast notifications using `react-hot-toast`:
-
+3. Run and fix linting issues:
 ```bash
-npm install react-hot-toast
-```
-
-Update components to use loading/error states:
-
-```tsx
-const { data, isLoading, error } = useQuery({
-  queryKey: ['places'],
-  queryFn: fetchPlaces
-})
-
-if (isLoading) return <LoadingSpinner />
-if (error) return <ErrorMessage error={error} />
-```
-
-Add ARIA labels for accessibility:
-
-```tsx
-<button
-  aria-label="Select date"
-  aria-pressed={isSelected}
-  onClick={handleClick}
->
-  {date}
-</button>
+make format
+make lint
 ```
 
 **Acceptance Criteria**:
-- [ ] Loading spinner during API calls
-- [ ] Error boundary catches component errors
-- [ ] Toast notifications for success/errors
-- [ ] All interactive elements have ARIA labels
-- [ ] Keyboard navigation works
-- [ ] Responsive design on mobile
+- [ ] Ruff configured in pyproject.toml
+- [ ] Makefile with lint/format/test commands
+- [ ] All linting errors fixed
+- [ ] Code formatted consistently
+- [ ] `make lint` passes with no errors
 
 ---
 
-## Task 5: CI/CD Pipeline (30 min)
+## Task 3: CI/CD Pipeline (45 min)
 
-**Goal**: Create basic CI workflow.
-
-**Why**: Automate testing on PRs.
+**Goal**: Create GitHub Actions workflow for automated testing.
 
 **Implementation**:
 
-Create `.github/workflows/ci.yml`:
-
+1. Create `.github/workflows/tmc-places-ci.yml` in the repository:
 ```yaml
-name: CI
+name: TMC Places CI
 
 on:
   pull_request:
-    branches: [main]
+    paths:
+      - 'tmc-places/**'
   push:
     branches: [main]
+    paths:
+      - 'tmc-places/**'
 
 jobs:
   backend-tests:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: ./backend
+        working-directory: ./tmc-places/backend
+    
     steps:
       - uses: actions/checkout@v4
       
       - name: Install uv
-        uses: astral-sh/setup-uv@v1
+        uses: astral-sh/setup-uv@v3
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
       
       - name: Install dependencies
         run: uv sync
       
       - name: Run linting
-        run: |
-          uv run ruff check src/
-          uv run mypy src/
+        run: uv run ruff check src/
       
       - name: Run tests
-        run: uv run pytest --cov=src --cov-report=xml
-      
-      - name: Upload coverage
-        uses: codecov/codecov-action@v3
-        with:
-          file: ./backend/coverage.xml
-
-  frontend-tests:
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: ./frontend
-    steps:
-      - uses: actions/checkout@v4
-      
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-      
-      - name: Install dependencies
-        run: npm ci
-      
-      - name: Run linting
-        run: npm run lint
-      
-      - name: Run tests
-        run: npm test
+        run: uv run pytest --cov=src --cov-report=term
 ```
 
 **Acceptance Criteria**:
 - [ ] CI workflow file created
-- [ ] Backend tests run on PR
-- [ ] Frontend tests run on PR
+- [ ] Workflow triggers on PR and push to main
+- [ ] Backend tests run automatically
 - [ ] Linting checks enforced
-- [ ] Type checking enforced
-- [ ] Coverage reports uploaded
-- [ ] PR blocked if checks fail
+- [ ] Push to test the workflow
 
 ---
 
-## Task 6: E2E Testing with Playwright (SKIP - Out of scope)
+## Task 4: Deployment Preparation (60 min)
 
-**Goal**: ~~Setup Playwright~~ **Move to post-hackathon backlog**.
-
-**Why**: 4 hours isn't enough for E2E setup + other priorities.
+**Goal**: Prepare deployment configuration for tmc-cloud Kubernetes cluster.
 
 **Implementation**:
 
-Install Playwright:
-
-```bash
-cd frontend
-npm install -D @playwright/test
-npx playwright install
+1. Create `tmc-places/k8s/` directory:
+```
+k8s/
+├── namespace.yaml
+├── backend-deployment.yaml
+├── backend-service.yaml
+└── ingress.yaml
 ```
 
-Create `e2e/` directory:
-
-```
-e2e/
-├── fixtures/
-│   └── mock-data.json
-└── tests/
-    └── booking-flow.spec.ts
+2. Create `namespace.yaml`:
+```yaml
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: tmc-places
 ```
 
-`e2e/tests/booking-flow.spec.ts`:
-
-```ts
-import { test, expect } from '@playwright/test'
-
-test.describe('Booking visualization flow', () => {
-  test('should load map and show room availability', async ({ page }) => {
-    await page.goto('http://localhost:3000')
-    
-    // Wait for map to load
-    await expect(page.locator('[data-testid="office-map"]')).toBeVisible()
-    
-    // Select date
-    await page.click('[data-testid="date-picker"]')
-    await page.click('[data-testid="date-2025-12-11"]')
-    
-    // Verify rooms are colored
-    const availableRooms = await page.locator('.room-available').count()
-    expect(availableRooms).toBeGreaterThan(0)
-    
-    // Click on a room
-    await page.click('[data-testid="room-101"]')
-    
-    // Verify details modal opens
-    await expect(page.locator('[data-testid="room-details"]')).toBeVisible()
-  })
-})
+3. Create `backend-deployment.yaml`:
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: places-backend
+  namespace: tmc-places
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: places-backend
+  template:
+    metadata:
+      labels:
+        app: places-backend
+    spec:
+      containers:
+      - name: backend
+        image: places-backend:latest
+        ports:
+        - containerPort: 8000
+        env:
+        - name: ENVIRONMENT
+          value: "production"
 ```
 
-Add npm script:
-
-```json
-{
-  "scripts": {
-    "e2e": "playwright test",
-    "e2e:ui": "playwright test --ui"
-  }
-}
+4. Create `backend-service.yaml`:
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: places-backend
+  namespace: tmc-places
+spec:
+  selector:
+    app: places-backend
+  ports:
+  - port: 80
+    targetPort: 8000
+  type: ClusterIP
 ```
+
+5. Update `tmc-places/backend/Dockerfile.prod` if needed for optimization
+
+6. Document deployment steps in `tmc-places/docs/deployment.md`
 
 **Acceptance Criteria**:
-- [ ] Playwright installed and configured
-- [ ] E2E test for main booking flow
-- [ ] Test: load map → select date → view room status
-- [ ] Test runs in headless mode
-- [ ] `npm run e2e` passes
-- [ ] Screenshots on failure
-
----
-
-## Task 7: Documentation Updates (SKIP - Out of scope)
-
-**Goal**: ~~Update README~~ **Move to post-hackathon backlog**.
-
-**Why**: Focus on working code first, docs later.
-
-**Implementation**:
-
-Update `README.md` sections:
-
-```markdown
-## Development
-
-### Backend
-```bash
-cd backend
-uv sync
-uv run uvicorn src.main:app --reload
-```
-
-### Frontend
-```bash
-cd frontend
-npm install
-npm run dev
-```
-
-## Testing
-
-### Backend Tests
-```bash
-cd backend
-uv run pytest --cov  # Run tests with coverage
-uv run ruff check src/  # Linting
-uv run mypy src/  # Type checking
-```
-
-### Frontend Tests
-```bash
-cd frontend
-npm test  # Unit tests
-npm run e2e  # E2E tests
-npm run lint  # ESLint
-```
-
-## CI/CD
-
-Pull requests automatically run:
-- Backend: pytest, ruff, mypy
-- Frontend: vitest, eslint, playwright
-
-Coverage reports uploaded to Codecov.
-
-## Deployment Checklist
-
-- [ ] All tests passing
-- [ ] Linting clean
-- [ ] Type checking passing
-- [ ] E2E tests passing
-- [ ] Environment variables set
-- [ ] Database migrations run
-- [ ] Monitoring configured
-```
-
-**Acceptance Criteria**:
-- [ ] README has development section
-- [ ] Testing instructions documented
-- [ ] CI/CD process explained
-- [ ] Deployment checklist added
-- [ ] Troubleshooting section
-- [ ] API documentation linked
+- [ ] Kubernetes manifests created
+- [ ] Deployment configuration reviewed
+- [ ] Docker image builds successfully
+- [ ] Deployment documentation written
+- [ ] (Optional) Test deployment on tmc-cloud if time permits
 
 ---
 
@@ -536,42 +258,47 @@ Coverage reports uploaded to Codecov.
 
 **Must Have**:
 - [ ] Backend: 5+ tests passing
-- [ ] Frontend: 3+ component tests passing
-- [ ] Linting configured (ruff, eslint)
-- [ ] Loading spinners in UI
-- [ ] Error boundaries in UI
-- [ ] CI workflow file created
+- [ ] Linting configured and passing (ruff)
+- [ ] CI workflow running on GitHub Actions
+- [ ] Kubernetes deployment manifests created
 
 **Stretch Goals** (if time permits):
-- [ ] Toast notifications
-- [ ] Type checking with mypy
-- [ ] Coverage >50%
+- [ ] Actually deploy to tmc-cloud cluster
+- [ ] Add frontend linting (ESLint)
+- [ ] Coverage report >60%
 
 ---
 
-## Quick Start
+## Quick Commands
 
 ```bash
-# Backend tests
-cd backend
-uv run pytest --cov
+# Setup
+cd tmc-places/backend
+uv sync
 
-# Frontend tests
-cd frontend
-npm test
+# Testing
+make test                    # Run all tests
+uv run pytest --cov         # Tests with coverage
 
-# E2E tests (requires both backend and frontend running)
-cd frontend
-npm run e2e
+# Code Quality
+make lint                    # Check code quality
+make format                  # Auto-fix formatting
 
-# Run all checks
-make lint
-make test
+# Docker Build
+docker build -f Dockerfile.prod -t places-backend:latest .
+
+# Kubernetes Deploy (on tmc-cloud)
+kubectl apply -f k8s/namespace.yaml
+kubectl apply -f k8s/backend-deployment.yaml
+kubectl apply -f k8s/backend-service.yaml
 ```
 
-## Testing Strategy
+---
 
-1. **Unit Tests**: Test individual functions and components in isolation
-2. **Integration Tests**: Test API endpoints with mocked dependencies
-3. **E2E Tests**: Test complete user workflows in browser
-4. **Manual Testing**: Visual QA on staging environment
+## Time Allocation
+
+- **Task 1 - Testing**: 90 minutes
+- **Task 2 - Code Quality**: 45 minutes
+- **Task 3 - CI/CD**: 45 minutes
+- **Task 4 - Deployment**: 60 minutes
+- **Total**: 240 minutes (4 hours)
